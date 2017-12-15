@@ -152,14 +152,10 @@ def swap_gift_1on1(children, gifts, gid1, gid2):
     
     # no twins
     if len(gid2_twins)==0 or len(gid1_twins)==0:
-        return gid1, gid2, gid1_list, gid2_list
-#        # child
-#        [children.replace(cid, gid2) for cid in gid2_list]
-#        [children.replace(cid, gid1) for cid in gid1_list]
-#        
-#        # gift
-#        [gifts.replace(gid1, gid2, cid) for cid in gid2_list]
-#        [gifts.replace(gid2, gid1, cid) for cid in gid1_list]
+        gid1_list = set(gid1_list) - set(gifts[gid1].cids)
+        gid2_list = set(gid2_list) - set(gifts[gid2].cids)
+        if len(gid1_list)>0 and len(gid2_list)>0:
+            return gid1, gid2, gid1_list, gid2_list
         
     return 
 

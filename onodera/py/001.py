@@ -22,7 +22,7 @@ total_proc = 40
 
 np.random.seed(seed)
 
-sub = pd.read_csv('../output/6148153.zip')
+sub = pd.read_csv('../output/sub930504.1229999999.csv.gz')
 
 children = utils.Children(sub.ChildId.values, sub.GiftId.values)
 gifts    = utils.Gifts(sub.GiftId.values, sub.ChildId.values)
