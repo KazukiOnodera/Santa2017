@@ -35,7 +35,7 @@ pred_start = pd.read_csv('../output/subm_ond1216_swap3.csv').values.tolist()
 # output file
 outfile = '../output/subm_ond1216_swap3-2.csv'
 
-timelimit = 60*60*6
+timelimit = 60*60*12
 
 seed = 72
 np.random.seed(seed)
