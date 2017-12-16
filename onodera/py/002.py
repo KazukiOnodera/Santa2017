@@ -226,17 +226,21 @@ while True:
     callback = sum(callback, [])
     callback = sorted(callback, key=itemgetter(2), reverse=True)
     
+    ng_list = []
     for (cid1, cid2, d) in callback:
+        if cid1 in ng_list or cid2 in ng_list:
+            continue
+        ng_list.append(cid1); ng_list.append(cid2)
         gid1 = children[cid1].gid
         gid2 = children[cid2].gid
         children.replace(cid1, cid2)
         gifts.replace(gid1, gid2, cid1)
         gifts.replace(gid2, gid1, cid2)
     
-    if cnt%100==0:
+    if cnt%1==0:
         d = time.time()-st_time
         total_hp = utils.total_happiness(children, gifts)
-        print("cnt = {} : total_happiness = {} elaped = {}".format(cnt, total_hp, d))
+        print("cnt = {} : total_happiness = {} : elaped = {}".format(cnt, total_hp, d))
         children.mk_sub('../output/sub{}.csv.gz'.format(total_hp))
         if d>timelimit:
             break
