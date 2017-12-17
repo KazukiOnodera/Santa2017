@@ -7,9 +7,10 @@ Created on Wed Dec 13 08:54:21 2017
 
 nohup python -u 002.py > log.txt &
 
-最初のループではchild Aを全部舐めて、
-2番目はchild Aの好みを舐めて、
-3番目ではそのAの好みを持ってるchildを探す
+swap3 + child vs child
+
+nohup python -u 003.py > log.txt &
+
 
 """
 
@@ -21,12 +22,13 @@ from tqdm import tqdm
 from glob import glob
 from collections import defaultdict
 from multiprocessing import Pool
+import heapq
 import utils
 #utils.start(__file__)
 
-seed = 71
+seed = 1
 total_proc = 40
-timelimit = 60*60*4
+timelimit = 60*60*3
 
 input_file  = '../output/sub941172.7.csv.gz'
 #output_file = '../output/subm_ond1216_child-vs-child.csv.gz'
@@ -248,6 +250,50 @@ def happiness_diff(cid, gid1, gid2):
     d  = children[cid].get_happiness(gid1) - children[cid].get_happiness(gid2)
     return d
 
+def swap3_greedy_all_multi(ggg):
+    i, j, k = ggg
+    all_users = gifts[i].cids + gifts[j].cids + gifts[k].cids
+    
+    # sort by happiness_i - happiness_j
+    prefer_order = np.argsort([children[c].get_happiness(i) - children[c].get_happiness(j) for c in all_users])
+    users_sorted = [all_users[l] for l in prefer_order]
+    # former prefer j to i
+    # former 1000+K(0 <= K <= 1000) children should get j or k
+    
+    left_hap = sum([children[users_sorted[l]].get_happiness(j) for l in range(1000)])
+    happiness_list = [left_hap]
+    left_queue = [children[users_sorted[l]].get_happiness(j) - children[users_sorted[l]].get_happiness(k) for l in range(1000)]
+    heapq.heapify(left_queue)
+    for K in range(1000):
+        heapq.heappush(left_queue, children[users_sorted[1000+K]].get_happiness(j) - children[users_sorted[1000+K]].get_happiness(k))
+        left_hap += children[users_sorted[1000+K]].get_happiness(j)
+        left_hap -= heapq.heappop(left_queue)
+        happiness_list.append(left_hap)
+    
+    # latter 1000+L
+    right_hap = sum([children[users_sorted[l]].get_happiness(i) for l in range(2000, 3000)])
+    happiness_list[-1] += right_hap
+    right_queue = [children[users_sorted[l]].get_happiness(i) - children[users_sorted[l]].get_happiness(k) for l in range(2000, 3000)]
+    heapq.heapify(right_queue)
+    for L in range(1000):
+        heapq.heappush(right_queue, children[users_sorted[1999-L]].get_happiness(i) - children[users_sorted[1999-L]].get_happiness(k))
+        right_hap += children[users_sorted[1999-L]].get_happiness(i)
+        right_hap -= heapq.heappop(right_queue)
+        happiness_list[999-L] += right_hap
+    
+    # which.max
+    K_best = happiness_list.index(max(happiness_list))
+    # former (j or k)
+    former_users = users_sorted[:(1000+K_best)]
+    prefer_order_1 = np.argsort([children[c].get_happiness(k) - children[c].get_happiness(j) for c in former_users])
+    users_sorted_1 = [former_users[l] for l in prefer_order_1]
+    # latter (i or k)
+    latter_users = users_sorted[(1000+K_best):]
+    prefer_order_2 = np.argsort([children[c].get_happiness(k) - children[c].get_happiness(i) for c in latter_users])
+    users_sorted_2 = [latter_users[l] for l in prefer_order_2]
+    
+    return i,j,k, users_sorted_2[:1000], users_sorted_1[:1000], users_sorted_2[1000:] + users_sorted_1[1000:]
+
 def child_vs_child(cid1):
     ret = []
     for gidA in children[cid1].pref:
@@ -261,35 +307,55 @@ def child_vs_child(cid1):
     return ret
 
 
-cids_twins     = np.arange(0, 4000)
-cids_not_twins = np.arange(4000, 1000000)
+#cids_twins     = np.arange(0, 4000)
+#cids_not_twins = np.arange(4000, 1000000)
 cids = np.arange(0, 1000000)
+gids = np.arange(0, 1000)
 
 total_hp_init = total_happiness(children)
 print("total_happiness:", total_hp_init)
 cnt = 0
 st_time = time.time()
+delta_swap3 = 0
+delta_cvsc = 0
 
 while True:
     cnt +=1
     
-    # mp child_vs_child
+    # swap3
     pool = Pool(total_proc)
-    callback = pool.map(child_vs_child, np.random.choice(cids, replace=False, size=10000))
+    np.random.shuffle(gids)
+    gids_ = list(zip(*[iter(gids)]*3))
+    callback = pool.map(swap3_greedy_all_multi, gids_)
     pool.close()
-    callback = sum(callback, [])
-    callback = sorted(callback, key=itemgetter(2), reverse=True)
     
-    ng_list = []
-    for (cid1, cid2, d) in callback:
-        if cid1 in ng_list or cid2 in ng_list:
-            continue
-        ng_list.append(cid1); ng_list.append(cid2)
-        gid1 = children[cid1].gid
-        gid2 = children[cid2].gid
-        children.replace(cid1, cid2)
-        gifts.replace(gid1, gid2, cid1)
-        gifts.replace(gid2, gid1, cid2)
+    for i,j,k, i_list, j_list, k_list in (callback):
+        delta_swap3 += sum([children[c].happiness(i) for c in i_list]) - sum([children[c].happiness(i) for c in gifts[i].cids])
+        delta_swap3 += sum([children[c].happiness(j) for c in j_list]) - sum([children[c].happiness(j) for c in gifts[j].cids])
+        delta_swap3 += sum([children[c].happiness(k) for c in k_list]) - sum([children[c].happiness(k) for c in gifts[k].cids])
+        
+        gifts[i].cids = i_list
+        gifts[j].cids = j_list
+        gifts[k].cids = k_list
+        
+    # mp child_vs_child
+    if cnt%10==0:
+        pool = Pool(total_proc)
+        callback = pool.map(child_vs_child, np.random.choice(cids, replace=False, size=30000))
+        pool.close()
+        callback = sum(callback, [])
+        callback = sorted(callback, key=itemgetter(2), reverse=True)
+        
+        ng_list = []
+        for (cid1, cid2, d) in callback:
+            if cid1 in ng_list or cid2 in ng_list:
+                continue
+            ng_list.append(cid1); ng_list.append(cid2)
+            gid1 = children[cid1].gid
+            gid2 = children[cid2].gid
+            children.replace(cid1, cid2)
+            gifts.replace(gid1, gid2, cid1)
+            gifts.replace(gid2, gid1, cid2)
     
     if cnt%10==0:
         d = time.time()-st_time

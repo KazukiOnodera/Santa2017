@@ -27,10 +27,10 @@ gift_pref = pd.read_csv('../input/child_wishlist.csv.zip',header=None).drop(0, 1
 child_pref = pd.read_csv('../input/gift_goodkids.csv.zip',header=None).drop(0, 1).values
 
 # input file
-pred_start = pd.read_csv('../output/subm_ond1216_swap3.csv').values.tolist()
+pred_start = pd.read_csv('../output/sub3765342892.csv.gz').values.tolist()
 
 # output file
-outfile = '../output/subm_ond1216_swap3-2.csv'
+outfile = '../output/sub3765342892-twin_hosei.csv.gz'
 
 
 
@@ -192,10 +192,14 @@ for i in range(2000):
 print(gain_move)
 
 
-out = open(outfile, 'w')
-out.write('ChildId,GiftId\n')
-for i in range(len(res_list_temp)):
-    out.write(str(i) + ',' + str(res_list_temp[i][1]) + '\n')
-out.close()
+df = pd.DataFrame(res_list_temp,
+                  columns=['ChildId','GiftId'])
+df.to_csv(outfile, index=False, compression='gzip')
+
+#out = open(outfile, 'w')
+#out.write('ChildId,GiftId\n')
+#for i in range(len(res_list_temp)):
+#    out.write(str(i) + ',' + str(res_list_temp[i][1]) + '\n')
+#out.close()
 
 

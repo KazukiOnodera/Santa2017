@@ -11,6 +11,9 @@ nohup python -u 002.py > log.txt &
 2番目はchild Aの好みを舐めて、
 3番目ではそのAの好みを持ってるchildを探す
 
+nohup python -u 002_1217-1.py > log.txt &
+
+
 """
 
 import pandas as pd
@@ -26,7 +29,7 @@ import utils
 
 seed = 71
 total_proc = 40
-timelimit = 60*60*4
+timelimit = 60*60*3
 
 input_file  = '../output/sub941172.7.csv.gz'
 #output_file = '../output/subm_ond1216_child-vs-child.csv.gz'
@@ -275,7 +278,7 @@ while True:
     
     # mp child_vs_child
     pool = Pool(total_proc)
-    callback = pool.map(child_vs_child, np.random.choice(cids, replace=False, size=10000))
+    callback = pool.map(child_vs_child, np.random.choice(cids, replace=False, size=30000))
     pool.close()
     callback = sum(callback, [])
     callback = sorted(callback, key=itemgetter(2), reverse=True)
