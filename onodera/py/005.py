@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Dec 13 08:54:21 2017
+Created on Mon Dec 18 09:46:00 2017
 
 @author: konodera
-
-
-swap3 + child vs child
-
-nohup python -u 003.py > log.txt &
-
-
 """
+
 
 import pandas as pd
 import numpy as np
@@ -22,16 +16,18 @@ from glob import glob
 from collections import defaultdict
 from multiprocessing import Pool
 import heapq
+from sys import argv
 import utils
 #utils.start(__file__)
 
-seed = 1
+seed = 1 #int(argv[1])
 total_proc = 40
 timelimit = 60*60*3
 
-input_file  = '../output/sub941172.7.csv.gz'
+input_file  = '../data/0.94253859.csv'
 #output_file = '../output/subm_ond1216_child-vs-child.csv.gz'
 
+print('seed:', seed)
 np.random.seed(seed)
 # =============================================================================
 # preprocess
@@ -134,17 +130,17 @@ class Child:
     
     def get_happiness(self, gid):
         return self.prefer_dict.get(gid, -202)
-
-#    def get_happiness(self, gid):
-#        try:
-#            hp = (n_gift_pref - np.where(self.pref==gid)[0][0]) * ratio_child_happiness
-#        except IndexError:
-#            hp = -1
-#        hp /=20.
-#        return hp
     
+    def get_true_happiness(self, gid):
+        try:
+            hp = (n_gift_pref - np.where(self.pref==gid)[0][0]) * ratio_child_happiness
+        except IndexError:
+            hp = -1
+        hp /=20.
+        return hp
+        
     def set_happiness(self):
-        self.happiness = self.get_happiness(self.gid)
+        self.happiness = self.get_true_happiness(self.gid)
 
 def get_gift(gid):
     return gift.iloc[gid].values
@@ -179,14 +175,17 @@ class Gift:
         self.pref = values[1:]
         self.cids = cids
     
-#    def get_happiness(self, cid):
-#        try:
-#            hp = (n_child_pref - np.where(self.pref==cid)[0][0]) * ratio_gift_happiness
-#        except IndexError:
-#            hp = -1
-#        hp /=2000.
-#        return hp
+    def __getitem__(self, index):
+        return self.cids[index]
     
+    def get_happiness(self, cid):
+        try:
+            hp = (n_child_pref - np.where(self.pref==cid)[0][0]) * ratio_gift_happiness
+        except IndexError:
+            hp = -1
+        hp /=2000.
+        return hp
+        
     def remove_cid(self, cid):
         if cid in self.cids:
             self.cids.remove(cid)
@@ -194,11 +193,13 @@ class Gift:
     def append_cid(self, cid):
         if cid not in self.cids:
             self.cids.append(cid)
-    
-#    def set_happiness(self):
-#        self.happiness = 0
-#        self.happiness += np.sum([self.get_happiness(cid) for cid in self.cids])
-        
+            
+    def set_happiness(self):
+        assert len(self.cids)==1000, len(self.cids)
+        self.happiness = 0
+        self.happiness += np.sum([self.get_happiness(cid) for cid in self.cids])
+
+
 
 sub = pd.read_csv(input_file)
 
@@ -206,48 +207,127 @@ children = Children(sub.ChildId.values, sub.GiftId.values)
 gifts    = Gifts(sub.GiftId.values, sub.ChildId.values)
 child_pref = pd.read_csv('../input/gift_goodkids.csv.zip',header=None).drop(0, 1).values
 
-for j in range(1000):
-    cf = child_pref[j]
-    done_list = []
-    for i in range(cf.shape[0]):
-        if cf[i] < 4000 and cf[i] not in done_list:
-            if cf[i] % 2 == 0:
-                cid1 = cf[i]
-                cid2 = cf[i] + 1
-                done_list.append(cid2)
-            else:
-                cid1 = cf[i] - 1
-                cid2 = cf[i]
-                done_list.append(cid1)
-            if cid1 in list(cf):
-                score_ = 2*(cf.shape[0] - list(cf).index(cid1))
-            else:
-                score_ = -1
-            if cid2 in list(cf):
-                score_ += 2*(cf.shape[0] - list(cf).index(cid2))
-            else:
-                score_ += -1
-            children[cid1].add_gifts_prefer(j, score_)
-            children[cid2].add_gifts_prefer(j, score_)
-        elif cf[i] >= 4000:
-            children[cf[i]].add_gifts_prefer(j, 2*(cf.shape[0] - i))
+def set_pref():
+    for j in range(1000):
+        cf = child_pref[j]
+        done_list = []
+        for i in range(cf.shape[0]):
+            if cf[i] < 4000 and cf[i] not in done_list:
+                if cf[i] % 2 == 0:
+                    cid1 = cf[i]
+                    cid2 = cf[i] + 1
+                    done_list.append(cid2)
+                else:
+                    cid1 = cf[i] - 1
+                    cid2 = cf[i]
+                    done_list.append(cid1)
+                if cid1 in list(cf):
+                    score_ = 2*(cf.shape[0] - list(cf).index(cid1))
+                else:
+                    score_ = -1
+                if cid2 in list(cf):
+                    score_ += 2*(cf.shape[0] - list(cf).index(cid2))
+                else:
+                    score_ += -1
+                children[cid1].add_gifts_prefer(j, score_)
+                children[cid2].add_gifts_prefer(j, score_)
+            elif cf[i] >= 4000:
+                children[cf[i]].add_gifts_prefer(j, 2*(cf.shape[0] - i))
+set_pref()
 
+cids_twins     = np.arange(0, 4000)
+cids_not_twins = np.arange(4000, 1000000)
 
+# unmatch twins
 
+"""
+[(1210, 1211),
+ (1372, 1373),
+ (1620, 1621),
+ (1838, 1839),
+ (2116, 2117),
+ (2358, 2359),
+ (2848, 2849),
+ (3432, 3433),
+ (3604, 3605),
+ (3632, 3633),
+ (3668, 3669)]
 
+"""
 
 
 # =============================================================================
-# main
+# def
 # =============================================================================
-def total_happiness(children):
+def get_change_twins():
+    target_twins = [c for c in np.arange(0, 4000) if children[c].gid != children[children[c].twins_id].gid]
+    target_twins_ = list(zip(*[iter(target_twins)]*2))
+    return [np.random.choice(pair) for pair in target_twins_]
+
+def get_random_gid3():
+    gids = np.arange(0, 1000)
+    np.random.shuffle(gids)
+    return list(zip(*[iter(gids)]*3))
+
+def total_happiness():
     [c.set_happiness() for c in children]
-    ret = np.sum([c.happiness for c in children])
+    ret  = np.sum([c.happiness for c in children])
+    [g.set_happiness() for g in gifts]
+    ret += np.sum([g.happiness for g in gifts])
     return ret
 
-def happiness_diff(cid, gid1, gid2):
-    d  = children[cid].get_happiness(gid1) - children[cid].get_happiness(gid2)
-    return d
+#def happiness_diff(cid, gid1, gid2):
+#    """
+#    gid1 -> gid2
+#    """
+#    d  = children[cid].get_happiness(gid2) - children[cid].get_happiness(gid1)
+#    return d
+#
+#children[193551].get_happiness(319)
+#children[193551].get_happiness(349)
+#
+#children[3433].get_happiness(319)
+#children[3433].get_happiness(349)
+
+
+#def twin_vs_nottwin(cid1):
+#    ret = []
+#    gidA = children[children[cid1].twins_id].gid
+#    for cid2 in gifts[gidA].cids:
+#        if cid2 in cids_twins: # TODO: ???
+#            continue
+#        gidB = children[cid1].gid
+#        d = happiness_diff(cid1, gidB, gidA) + happiness_diff(cid2, gidA, gidB)
+#        ret.append((cid1, cid2, d))
+#    return ret
+#
+#def nottwin_vs_nottwin1(cid1):
+#    ret = []
+#    for gidA in children[cid1].pref:
+#        if gidA==children[cid1].gid:
+#            break
+#        for cid2 in gifts[gidA].cids:
+#            if cid2<4000:
+#                continue
+#            gidB = children[cid1].gid
+#            d = happiness_diff(cid1, gidB, gidA) + happiness_diff(cid2, gidA, gidB)
+#            if d>=0:
+#                ret.append((cid1, cid2, d))
+#    return ret
+#
+#def nottwin_vs_nottwin2(cid1):
+#    ret = []
+#    for gidA in children[cid1].pref:
+#        if gidA==children[cid1].gid:
+#            break
+#        for cid2 in gifts[gidA].cids:
+#            if cid2<4000:
+#                continue
+#            gidB = children[cid1].gid
+#            d = happiness_diff(cid1, gidB, gidA) + happiness_diff(cid2, gidA, gidB)
+#            if d>0:
+#                ret.append((cid1, cid2, d))
+#    return ret
 
 def swap3_greedy_all_multi(ggg):
     i, j, k = ggg
@@ -293,78 +373,87 @@ def swap3_greedy_all_multi(ggg):
     
     return i,j,k, users_sorted_2[:1000], users_sorted_1[:1000], users_sorted_2[1000:] + users_sorted_1[1000:]
 
-def child_vs_child(cid1):
-    ret = []
-    for gidA in children[cid1].pref:
-        if gidA==children[cid1].gid:
-            break
-        for cid2 in gifts[gidA].cids:
-            gidB = children[cid1].gid
-            d = happiness_diff(cid1, gidA, gidB) + happiness_diff(cid2, gidB, gidA)
-            if d>=0:
-                ret.append((cid1, cid2, d))
-    return ret
+# =============================================================================
+# main
+# =============================================================================
+init_score   = total_happiness() # 942539.54049999942
+target_score = 942539.005
+print("init_score", init_score)
 
+cnt = delta_swap3 = 0
 
-#cids_twins     = np.arange(0, 4000)
-#cids_not_twins = np.arange(4000, 1000000)
-cids = np.arange(0, 1000000)
-gids = np.arange(0, 1000)
-
-total_hp_init = total_happiness(children)
-print("total_happiness:", total_hp_init)
-cnt = 0
-st_time = time.time()
-delta_swap3 = 0
-delta_cvsc = 0
 
 while True:
     cnt +=1
     
     # swap3
     pool = Pool(total_proc)
-    np.random.shuffle(gids)
-    gids_ = list(zip(*[iter(gids)]*3))
-    callback = pool.map(swap3_greedy_all_multi, gids_)
+    gids = get_random_gid3()
+    callback = pool.map(swap3_greedy_all_multi, gids)
     pool.close()
     
     for i,j,k, i_list, j_list, k_list in (callback):
-        delta_swap3 += sum([children[c].happiness(i) for c in i_list]) - sum([children[c].happiness(i) for c in gifts[i].cids])
-        delta_swap3 += sum([children[c].happiness(j) for c in j_list]) - sum([children[c].happiness(j) for c in gifts[j].cids])
-        delta_swap3 += sum([children[c].happiness(k) for c in k_list]) - sum([children[c].happiness(k) for c in gifts[k].cids])
+        delta_swap3 += sum([children[c].get_happiness(i) for c in i_list]) - sum([children[c].get_happiness(i) for c in gifts[i].cids])
+        delta_swap3 += sum([children[c].get_happiness(j) for c in j_list]) - sum([children[c].get_happiness(j) for c in gifts[j].cids])
+        delta_swap3 += sum([children[c].get_happiness(k) for c in k_list]) - sum([children[c].get_happiness(k) for c in gifts[k].cids])
         
         gifts[i].cids = i_list
         gifts[j].cids = j_list
         gifts[k].cids = k_list
+    
+    
+    
+    
+    hp = utils.hosei(gifts, children)
+    print(hp)
+    if hp > target_score:
+        children.mk_sub('../output/sub{}.csv.gz'.format(hp))
+        break
+    else:
+        # start over
+#        children = Children(sub.ChildId.values, sub.GiftId.values)
+#        gifts    = Gifts(sub.GiftId.values, sub.ChildId.values)
+#        set_pref()
         
-    # mp child_vs_child
-    if cnt%10==0:
-        pool = Pool(total_proc)
-        callback = pool.map(child_vs_child, np.random.choice(cids, replace=False, size=90000))
-        pool.close()
-        callback = sum(callback, [])
-        callback = sorted(callback, key=itemgetter(2), reverse=True)
+        # TODO: restore not twin2?
         
-        ng_list = []
-        for (cid1, cid2, d) in callback:
-            if cid1 in ng_list or cid2 in ng_list:
-                continue
-            ng_list.append(cid1); ng_list.append(cid2)
+        for (cid1, cid2, d) in changed_pairs[::-1]:
             gid1 = children[cid1].gid
             gid2 = children[cid2].gid
             children.replace(cid1, cid2)
             gifts.replace(gid1, gid2, cid1)
             gifts.replace(gid2, gid1, cid2)
-    
-    if cnt%10==0:
-        d = time.time()-st_time
-        total_hp = total_happiness(children)
-        delta_cvsc = total_hp - total_hp_init - delta_swap3
-        print("cnt = {} : hp = {} : swap3 = {} : cvsc = {} : elaped = {:.2f}".format(cnt, total_hp, delta_swap3, delta_cvsc, d))
-        children.mk_sub('../output/sub{}.csv.gz'.format(total_hp))
-        if d>timelimit:
-            break
+#        changed_pairs = []
+        
+        for (cid1, cid2, d) in changed_twin_pairs[::-1]:
+            gid1 = children[cid1].gid
+            gid2 = children[cid2].gid
+            children.replace(cid1, cid2)
+            gifts.replace(gid1, gid2, cid1)
+            gifts.replace(gid2, gid1, cid2)
+#        changed_twin_pairs = []
+#        sw_twins = True
+        
 
 
-utils.end(__file__)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

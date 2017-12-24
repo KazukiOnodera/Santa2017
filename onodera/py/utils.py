@@ -12,6 +12,7 @@ import os
 from tqdm import tqdm
 from glob import glob
 from collections import defaultdict
+from collections import Counter
 #import pickle
 #import config
 
@@ -98,10 +99,10 @@ ratio_gift_happiness = 2
 ratio_child_happiness = 2
 
 child = pd.read_csv('../input/child_wishlist.csv.zip', header=None)
-child.columns = ['cid'] + list(range(1, child.shape[1]))
+#child.columns = ['cid'] + list(range(1, child.shape[1]))
 
 gift = pd.read_csv('../input/gift_goodkids.csv.zip', header=None)
-gift.columns = ['gid'] + list(range(1, gift.shape[1]))
+#gift.columns = ['gid'] + list(range(1, gift.shape[1]))
 
 
 def get_twins_id(id):
@@ -269,9 +270,106 @@ class Gift:
         self.happiness = 0
         self.happiness += np.sum([self.get_happiness(cid) for cid in self.cids])
         
+def hosei(gifts, Children, return_score=True):
     
+    gifts_2 = defaultdict(list)
     
+    res_list_temp = [[] for i in range(1000000)]
+    for j in range(1000):
+        gifts_2[j] = gifts[j].cids
+        for i in gifts[j]:
+            res_list_temp[i] = [i, j]
     
+    gain_move = 0
+    for i in range(2000):
+        k1 = res_list_temp[2*i][1]
+        k2 = res_list_temp[2*i+1][1]
+        # which to go
+        if k1 == k2:
+            pass
+        else:
+            # 2*i move
+            gain1 = Children[2*i].get_happiness(k2) - Children[2*i].get_happiness(k1)
+            gain1_add = -10000000
+            for l in gifts_2[k2]:
+                gain1_add_ = Children[l].get_happiness(k1) - Children[l].get_happiness(k2)
+                if gain1_add_ > gain1_add and l > 2*i+1:
+                    v1 = l
+                    gain1_add = gain1_add_
+            # 2*i+1 move
+            gain2 = Children[2*i].get_happiness(k1) - Children[2*i].get_happiness(k2)
+            gain2_add = -10000000
+            for l in gifts_2[k1]:
+                gain2_add_ = Children[l].get_happiness(k2) - Children[l].get_happiness(k1)
+                if gain2_add_ > gain2_add and l > 2*i+1:
+                    v2 = l
+                    gain2_add = gain2_add_
+                    
+            if gain1 + gain1_add >= gain2 + gain2_add:
+                res_list_temp[2*i][1] = k2
+                res_list_temp[v1][1] = k1
+                gifts_2[k1].remove(2*i)
+                gifts_2[k2].append(2*i)
+                gifts_2[k2].remove(v1)
+                gifts_2[k1].append(v1)
+            else:
+                res_list_temp[2*i+1][1] = k1
+                res_list_temp[v2][1] = k2
+                gifts_2[k2].remove(2*i+1)
+                gifts_2[k1].append(2*i+1)
+                gifts_2[k1].remove(v2)
+                gifts_2[k2].append(v2)
+            gain_move += max(gain1 + gain1_add, gain2 + gain2_add)
+    print(gain_move)
     
+    df = pd.DataFrame(res_list_temp,
+                      columns=['ChildId','GiftId'])
+    if return_score:
+        return avg_normalized_happiness(df)
+    return df
+
+def avg_normalized_happiness(pred):
+    pred = pred.values.tolist()
+    child_pref = gift.drop(0, 1).values
+    gift_pref = child.drop(0, 1).values
     
+    # check if number of each gift exceeds n_gift_quantity
+    gift_counts = Counter(elem[1] for elem in pred)
+    for count in gift_counts.values():
+        assert count <= n_gift_quantity
+                
+    # check if twins have the same gift
+    for t1 in range(0,twins,2):
+        twin1 = pred[t1]
+        twin2 = pred[t1+1]
+        assert twin1[1] == twin2[1]
     
+    max_child_happiness = n_gift_pref * ratio_child_happiness
+    max_gift_happiness = n_child_pref * ratio_gift_happiness
+    total_child_happiness = 0
+    total_gift_happiness = np.zeros(n_gift_type)
+    
+    for row in pred:
+        child_id = row[0]
+        gift_id = row[1]
+        
+        # check if child_id and gift_id exist
+        assert child_id < n_children
+        assert gift_id < n_gift_type
+        assert child_id >= 0 
+        assert gift_id >= 0
+        child_happiness = (n_gift_pref - np.where(gift_pref[child_id]==gift_id)[0]) * ratio_child_happiness
+        if not child_happiness:
+            child_happiness = -1
+
+        gift_happiness = ( n_child_pref - np.where(child_pref[gift_id]==child_id)[0]) * ratio_gift_happiness
+        if not gift_happiness:
+            gift_happiness = -1
+
+        total_child_happiness += child_happiness
+        total_gift_happiness[gift_id] += gift_happiness
+    c_hp = float(total_child_happiness)/(float(n_children)*float(max_child_happiness))
+    g_hp = np.mean(total_gift_happiness) / float(max_gift_happiness*n_gift_quantity)
+    return c_hp + g_hp
+
+
