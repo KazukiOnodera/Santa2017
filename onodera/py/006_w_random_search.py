@@ -2,6 +2,14 @@
 # It is defined by the kaggle/python docker image: https://github.com/kaggle/docker-python
 # For example, here's several helpful packages to load in 
 
+"""
+
+nohup python -u 006_w_random_search.py > log1.txt &
+nohup python -u 006_w_random_search.py > log2.txt &
+nohup python -u 006_w_random_search.py > log3.txt &
+nohup python -u 006_w_random_search.py > log4.txt &
+
+"""
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 import math
@@ -20,7 +28,8 @@ triplets = math.ceil(0.005 * n_children / 3.) * 3    # 0.5% of all population, r
 ratio_gift_happiness = 2
 ratio_child_happiness = 2
 
-
+seed = np.random.randint(9999)
+print('seed:',seed)
 
 gift_pref = pd.read_csv('../input/child_wishlist_v2.csv.zip',header=None).drop(0, 1).values
 child_pref = pd.read_csv('../input/gift_goodkids_v2.csv.zip',header=None).drop(0, 1).values
@@ -167,7 +176,7 @@ class Child_triplet(object):
         self.idx = idx
         self.prefer_dict = dict()
         
-        for p in list(set(list(prefer1) + list(prefer2))):
+        for p in list(set(list(prefer1) + list(prefer2) + list(prefer3))):
             score = 0
             if p in list(prefer1):
                 score += 2*(100 - list(prefer1).index(p))
@@ -268,10 +277,13 @@ for j in range(1000):
         elif cf[i] > 45000:
             Children[cf[i]].add_gifts_prefer(j, 2*(cf.shape[0] - i))
 
+
+print("W_CHILD, W_GIFTS, score")
+
 while True:
     
-    W_CHILD = np.random.randint(8700, 10300)
-    W_GIFTS = np.random.randint(0, 3)
+    W_CHILD = np.random.randint(8000, 99999999)
+    W_GIFTS = np.random.randint(1, 5)
     
     
     start_nodes = []
@@ -406,9 +418,8 @@ while True:
     
     OBJ = CHILD_HAPPINESS**3 + SANTA_HAPPINESS**3
     
-    print()
     score = OBJ / (12000000000**3)
-    print('W_CHILD={} W_GIFTS={} score={}'.format(W_CHILD, W_GIFTS, score))
+    print('{}, {}, {}'.format(W_CHILD, W_GIFTS, score))
     
     # wata: 0.9362730938
     
